@@ -15,6 +15,14 @@ async fn main() {
     // Set the movement speed for the circle
     const MOVEMENT_SPEED: f32 = 200.0;
 
+    let mut squares = vec![];
+    let mut circle = Shape {
+        size: 32.0,
+        speed: MOVEMENT_SPEED,
+        x: screen_width() / 2.0,
+        y: screen_height() / 2.0,
+    };
+
     // Set initial circle position
     let mut x = screen_width() / 2.0;
     let mut y = screen_height() / 2.0;
@@ -28,24 +36,53 @@ async fn main() {
 
         // Move the circle
         if is_key_down(KeyCode::Right) {
-            x += MOVEMENT_SPEED * delta_time;
+            circle.x += MOVEMENT_SPEED * delta_time;
         }
         if is_key_down(KeyCode::Left) {
-            x -= MOVEMENT_SPEED * delta_time;
+            circle.x -= MOVEMENT_SPEED * delta_time;
         }
         if is_key_down(KeyCode::Down) {
-            y += MOVEMENT_SPEED * delta_time;
+            circle.y += MOVEMENT_SPEED * delta_time;
         }
         if is_key_down(KeyCode::Up) {
-            y -= MOVEMENT_SPEED * delta_time;
+            circle.y -= MOVEMENT_SPEED * delta_time;
         }
 
         // Clamp the circle's position to the screen
-        x = x.clamp(16.0, screen_width() - 16.0);
-        y = y.clamp(16.0, screen_height() - 16.0);
+        x = x.clamp(circle.size / 2.0, screen_width() - circle.size / 2.0);
+        y = y.clamp(circle.size / 2.0, screen_height() - circle.size / 2.0);
 
-        // Draw the circle
-        draw_circle(x, y, 16.0, YELLOW);
+        // Randomly generate squares
+        if rand::gen_range(0, 99) >= 95 {
+            let size = rand::gen_range(16.0, 64.0);
+            squares.push(Shape {
+                size,
+                speed: rand::gen_range(50.0, 150.0),
+                x: rand::gen_range(size / 2.0, screen_width() - size / 2.0),
+                y: - size,
+            });
+        }
+
+        // Move the squares
+        for square in &mut squares {
+            // Move the square
+            square.y += square.speed * delta_time;
+        }
+
+        // Check if squares are outside the screen and remove them
+        squares.retain(|square| square.y < screen_height() + square.size);
+
+        // Draw everything
+        draw_circle(circle.x, circle.y, circle.size, YELLOW);
+        for square in &squares {
+            draw_rectangle(
+                square.x - square.size / 2.0,
+                square.y - square.size / 2.0,
+                square.size,
+                square.size,
+                RED,
+            );
+        }
 
         // Wait for the next frame
         next_frame().await
