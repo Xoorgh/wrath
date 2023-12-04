@@ -104,12 +104,16 @@ async fn main() {
         }
 
         // Draw everything
+
+        // Draw the circle
         draw_circle(
             circle.x,
             circle.y,
             circle.size,
             YELLOW
         );
+
+        // Draw the squares
         for square in &squares {
             draw_rectangle(
                 square.x - square.size / 2.0,
@@ -119,6 +123,32 @@ async fn main() {
                 RED,
             );
         }
+
+        // Draw health bar outline
+        draw_rectangle_lines(
+            0.0,
+            0.0,
+            screen_width() * 0.32 + 2.0,
+            12.0,
+            12.0,
+            BLACK,
+        );
+        // Draw the health bar background
+        draw_rectangle(
+            0.0,
+            0.0,
+            screen_width() * 0.32,
+            10.0,
+            DARKGRAY,
+        );
+        // Draw health bar
+        draw_rectangle(
+            0.0,
+            0.0,
+            screen_width() * (circle.size / 100.0),
+            10.0,
+            if circle.size <= 16.0 { RED } else { GREEN },
+        );
 
         // Restart the game if space is pressed
         if gameover && is_key_pressed(KeyCode::Space) {
