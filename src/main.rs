@@ -41,10 +41,6 @@ async fn main() {
         y: screen_height() / 2.0,
     };
 
-    // Set initial circle position
-    let mut x = screen_width() / 2.0;
-    let mut y = screen_height() / 2.0;
-
     loop {
         // Get the time since the last frame
         let delta_time = get_frame_time();
@@ -68,8 +64,8 @@ async fn main() {
             }
 
             // Clamp the circle's position to the screen
-            x = x.clamp(circle.size / 2.0, screen_width() - circle.size / 2.0);
-            y = y.clamp(circle.size / 2.0, screen_height() - circle.size / 2.0);
+            circle.x = circle.x.clamp(circle.size, screen_width() - circle.size);
+            circle.y = circle.y.clamp(circle.size, screen_height() - circle.size);
 
             // Randomly generate squares
             if rand::gen_range(0, 99) >= 95 {
@@ -101,13 +97,11 @@ async fn main() {
                     // Remove the square
                     false
                 } else {
-                    true
+                    // Check if squares are outside the screen
+                    square.y < ( screen_height() + square.size )
                 }
             });
         }
-
-        // Check if squares are outside the screen and remove them
-        squares.retain(|square| square.y < screen_height() + square.size);
 
         // Draw everything
         draw_circle(circle.x, circle.y, circle.size, YELLOW);
