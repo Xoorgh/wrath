@@ -120,6 +120,40 @@ async fn main() {
             );
         }
 
+        // Restart the game if space is pressed
+        if gameover && is_key_pressed(KeyCode::Space) {
+            // Clear the squares
+            squares.clear();
+            // Reset the circle
+            circle.size = 32.0;
+            circle.x = screen_width() / 2.0;
+            circle.y = screen_height() / 2.0;
+            // Reset the gameover variable
+            gameover = false;
+        }
+
+        // Draw the gameover text
+        if gameover {
+            let gameover_text = "Game Over!";
+            let restart_text = "Press Space to Restart";
+            let gameover_text_dimensions = measure_text(gameover_text, None, 50, 1.0);
+            let restart_text_dimensions = measure_text(restart_text, None, 25, 1.0);
+            draw_text(
+                gameover_text,
+                screen_width() / 2.0 - gameover_text_dimensions.width / 2.0,
+                screen_height() / 2.0 - gameover_text_dimensions.height / 2.0,
+                50.0,
+                WHITE,
+            );
+            draw_text(
+                restart_text,
+                screen_width() / 2.0 - restart_text_dimensions.width / 2.0,
+                screen_height() / 2.0 - restart_text_dimensions.height / 2.0 + 25.0,
+                25.0,
+                WHITE,
+            );
+        }
+
         // Wait for the next frame
         next_frame().await
     }
