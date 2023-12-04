@@ -7,8 +7,26 @@ struct Shape {
     y: f32,
 }
 
+impl Shape {
+    fn collides_with(&self, other: &Self) -> bool {
+        self.rect().overlaps(&other.rect())
+    }
+
+    fn rect(&self) -> Rect {
+        Rect {
+            x: self.x - self.size / 2.0,
+            y: self.y - self.size / 2.0,
+            w: self.size,
+            h: self.size,
+        }
+    }
+}
+
 #[macroquad::main("wrath")]
 async fn main() {
+    // Declare gameover variable
+    let mut gameover = false;
+
     // Seed the random number generator
     rand::srand(get_time() as u64);
 
