@@ -104,7 +104,12 @@ async fn main() {
         }
 
         // Draw everything
-        draw_circle(circle.x, circle.y, circle.size, YELLOW);
+        draw_circle(
+            circle.x,
+            circle.y,
+            circle.size,
+            YELLOW
+        );
         for square in &squares {
             draw_rectangle(
                 square.x - square.size / 2.0,
