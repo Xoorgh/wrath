@@ -52,39 +52,58 @@ async fn main() {
         // Clear the screen and set the background color
         clear_background(BLUE);
 
-        // Move the circle
-        if is_key_down(KeyCode::Right) {
-            circle.x += MOVEMENT_SPEED * delta_time;
-        }
-        if is_key_down(KeyCode::Left) {
-            circle.x -= MOVEMENT_SPEED * delta_time;
-        }
-        if is_key_down(KeyCode::Down) {
-            circle.y += MOVEMENT_SPEED * delta_time;
-        }
-        if is_key_down(KeyCode::Up) {
-            circle.y -= MOVEMENT_SPEED * delta_time;
-        }
+        if !gameover {
+            // Move the circle
+            if is_key_down(KeyCode::Right) {
+                circle.x += MOVEMENT_SPEED * delta_time;
+            }
+            if is_key_down(KeyCode::Left) {
+                circle.x -= MOVEMENT_SPEED * delta_time;
+            }
+            if is_key_down(KeyCode::Down) {
+                circle.y += MOVEMENT_SPEED * delta_time;
+            }
+            if is_key_down(KeyCode::Up) {
+                circle.y -= MOVEMENT_SPEED * delta_time;
+            }
 
-        // Clamp the circle's position to the screen
-        x = x.clamp(circle.size / 2.0, screen_width() - circle.size / 2.0);
-        y = y.clamp(circle.size / 2.0, screen_height() - circle.size / 2.0);
+            // Clamp the circle's position to the screen
+            x = x.clamp(circle.size / 2.0, screen_width() - circle.size / 2.0);
+            y = y.clamp(circle.size / 2.0, screen_height() - circle.size / 2.0);
 
-        // Randomly generate squares
-        if rand::gen_range(0, 99) >= 95 {
-            let size = rand::gen_range(16.0, 64.0);
-            squares.push(Shape {
-                size,
-                speed: rand::gen_range(50.0, 150.0),
-                x: rand::gen_range(size / 2.0, screen_width() - size / 2.0),
-                y: - size,
+            // Randomly generate squares
+            if rand::gen_range(0, 99) >= 95 {
+                let size = rand::gen_range(16.0, 64.0);
+                squares.push(Shape {
+                    size,
+                    speed: rand::gen_range(50.0, 150.0),
+                    x: rand::gen_range(size / 2.0, screen_width() - size / 2.0),
+                    y: - size,
+                });
+            }
+
+            // Move the squares
+            for square in &mut squares {
+                // Move the square
+                square.y += square.speed * delta_time;
+            }
+
+            // Check for collisions, remove square that collides, reduce circle size and check if circle is too small
+            squares.retain(|square| {
+                if circle.collides_with(square) {
+                    // Reduce the circle's size
+                    circle.size -= 2.0;
+                    // Check if the circle is too small
+                    if circle.size <= 0.0 {
+                        // Set gameover to true
+                        gameover = true;
+                    }
+                    // Remove the square
+                    false
+                } else {
+                    true
+                }
             });
-        }
-
-        // Move the squares
-        for square in &mut squares {
-            // Move the square
-            square.y += square.speed * delta_time;
         }
 
         // Check if squares are outside the screen and remove them
