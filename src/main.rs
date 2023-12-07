@@ -1,4 +1,5 @@
 use macroquad::prelude::*;
+use std::fs;
 
 struct Shape {
     size: f32,
@@ -25,6 +26,11 @@ impl Shape {
 
 #[macroquad::main("wrath")]
 async fn main() {
+    let mut score: u32 = 0;
+    let mut high_score: u32 = fs::read_to_string("high_score.dat")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
     let mut gameover = false;
     let mut time_of_last_shot = 0.0;
     let mut fire_rate_multiplier = 1.0;
@@ -35,6 +41,7 @@ async fn main() {
     const CIRCLE_SIZE: f32 = 32.0;
     const FIRE_RATE: f32 = 0.25;
     const BASE_DAMAGE: f32 = 2.0;
+    const BASE_SCORE: f32 = 10.0;
 
     const SQUARE_MAX_SIZE: f32 = 64.0;
     const SQUARE_MIN_SIZE: f32 = 16.0;
@@ -117,10 +124,17 @@ async fn main() {
             // Check for collisions, remove square that collides, reduce circle size and check if circle is too small
             squares.retain(|square| {
                 if circle.collides_with(square) {
-                    // Reduce the circle's size
-                    circle.size -= BASE_DAMAGE * square.size / 16.0;
+                    // Reduce the circle's size, not below 0.0
+                    circle.size = (circle.size - (BASE_DAMAGE * square.size / 16.0)).max(0.0);
+                    // Reduce the score, not below 0
+                    score = score.saturating_sub((BASE_SCORE * square.size / 16.0).round() as u32);
                     // Check if the circle is too small
                     if circle.size <= 0.0 {
+                        // check if current score is a high score
+                        if score > high_score {
+                            // Save the high score
+                            fs::write("high_score.dat", score.to_string()).ok();
+                        }
                         // Set gameover to true
                         gameover = true;
                     }
@@ -141,6 +155,8 @@ async fn main() {
                         square.collided = true;
                         // Increase circle size to a max of CIRCLE_SIZE, inverse of square size
                         circle.size = (circle.size + (SQUARE_MAX_SIZE / square.size)).min(CIRCLE_SIZE);
+                        // Increase the score inversely to the square size
+                        score += (BASE_SCORE * SQUARE_MAX_SIZE / square.size).round() as u32;
                         // Remove the bullet
                         return false;
                     }
@@ -182,18 +198,36 @@ async fn main() {
             );
         }
 
-        // Draw health bar outline
+        // Draw HUD outline
         draw_rectangle_lines(
             0.0,
             0.0,
-            screen_width() * CIRCLE_SIZE / 100.0 + 2.0,
+            screen_width(),
+            26.0,
+            12.0,
+            BLACK,
+        );
+        // Draw HUD background
+        draw_rectangle(
+            0.0,
+            0.0,
+            screen_width(),
+            24.0,
+            BROWN,
+        );
+        // Draw health bar outline, middle of screen
+        let health_bar_x = screen_width() / 2.0 - screen_width() * CIRCLE_SIZE / 200.0;
+        draw_rectangle_lines(
+            health_bar_x - 2.0,
+            0.0,
+            screen_width() * CIRCLE_SIZE / 100.0 + 4.0,
             12.0,
             12.0,
             BLACK,
         );
         // Draw the health bar background
         draw_rectangle(
-            0.0,
+            health_bar_x,
             0.0,
             screen_width() * CIRCLE_SIZE / 100.0,
             10.0,
@@ -201,11 +235,39 @@ async fn main() {
         );
         // Draw health bar
         draw_rectangle(
-            0.0,
+            health_bar_x,
             0.0,
             screen_width() * (circle.size / 100.0),
             10.0,
             if circle.size <= 16.0 { RED } else { GREEN },
+        );
+        // Draw health bar text
+        draw_text(
+            &format!("Health: {:.0}%", circle.size / CIRCLE_SIZE * 100.0),
+            health_bar_x + 2.0,
+            8.0,
+            12.0,
+            BLACK,
+        );
+        // Draw score text
+        draw_text(
+            &format!("Score: {}", score).as_str(),
+            2.0,
+            16.0,
+            24.0,
+            WHITE,
+        );
+        // Draw high score text
+        let score_to_show = if score > high_score { score } else { high_score };
+        let high_score_text = &format!("High Score: {}", score_to_show);
+        let high_score_font_size = 24.0;
+        let high_score_text_dimensions = measure_text(high_score_text, None, high_score_font_size as u16, 1.0);
+        draw_text(
+            high_score_text.as_str(),
+            screen_width() - high_score_text_dimensions.width - 2.0,
+            16.0,
+            high_score_font_size,
+            WHITE,
         );
 
         // Restart the game if space is pressed
@@ -218,6 +280,8 @@ async fn main() {
             circle.size = CIRCLE_SIZE;
             circle.x = screen_width() / 2.0;
             circle.y = screen_height() / 2.0;
+            // Reset the score
+            score = 0;
             // Reset the gameover variable
             gameover = false;
         }
