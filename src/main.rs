@@ -32,6 +32,7 @@ async fn main() {
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
     let mut gameover = false;
+    let mut new_high_score = false;
     let mut time_of_last_shot = 0.0;
     let mut fire_rate_multiplier = 1.0;
 
@@ -125,13 +126,14 @@ async fn main() {
             squares.retain(|square| {
                 if circle.collides_with(square) {
                     // Reduce the circle's size, not below 0.0
-                    circle.size = (circle.size - (BASE_DAMAGE * square.size / 16.0)).max(0.0);
+                    circle.size = (circle.size - (BASE_DAMAGE * square.size / 16.0)).round().max(0.0);
                     // Reduce the score, not below 0
                     score = score.saturating_sub((BASE_SCORE * square.size / 16.0).round() as u32);
                     // Check if the circle is too small
                     if circle.size <= 0.0 {
                         // check if current score is a high score
                         if score > high_score {
+                            new_high_score = true;
                             // Save the high score
                             fs::write("high_score.dat", score.to_string()).ok();
                         }
@@ -282,6 +284,8 @@ async fn main() {
             circle.y = screen_height() / 2.0;
             // Reset the score
             score = 0;
+            new_high_score = false;
+            time_of_last_shot = 0.0;
             // Reset the gameover variable
             gameover = false;
         }
@@ -306,6 +310,17 @@ async fn main() {
                 25.0,
                 WHITE,
             );
+            if new_high_score {
+                let new_high_score_text = "New High Score!";
+                let new_high_score_text_dimensions = measure_text(new_high_score_text, None, 25, 1.0);
+                draw_text(
+                    new_high_score_text,
+                    screen_width() / 2.0 - new_high_score_text_dimensions.width / 2.0,
+                    screen_height() / 2.0 - new_high_score_text_dimensions.height / 2.0 - 50.0,
+                    25.0,
+                    WHITE,
+                );
+            }
         }
 
         // Wait for the next frame
