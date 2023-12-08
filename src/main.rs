@@ -1,6 +1,23 @@
 use macroquad::prelude::*;
 use std::fs;
 
+const FRAGMENT_SHADER: &str = include_str!("starfield-shader.glsl");
+
+const VERTEX_SHADER: &str = "#version 100
+attribute vec3 position;
+attribute vec2 texcoord;
+attribute vec4 color0;
+varying float iTime;
+
+uniform mat4 Model;
+uniform mat4 Projection;
+uniform vec4 _Time;
+
+void main() {
+    gl_Position = Projection * Model * vec4(position, 1);
+    iTime = _Time.x;
+}";
+
 struct Shape {
     size: f32,
     speed: f32,
@@ -33,6 +50,25 @@ enum GameState {
 
 #[macroquad::main("wrath")]
 async fn main() {
+    // Shader stuff
+    let mut direction_modifier: f32 = 0.0;
+    let render_target = render_target(screen_width() as u32, screen_height() as u32);
+    render_target.texture.set_filter(FilterMode::Nearest);
+    let material = load_material(
+        ShaderSource::Glsl {
+            vertex: VERTEX_SHADER,
+            fragment: FRAGMENT_SHADER,
+        },
+        MaterialParams {
+            uniforms: vec![
+                ("iResolution".to_owned(), UniformType::Float2),
+                ("direction_modifier".to_owned(), UniformType::Float1),
+            ],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
     let mut score: u32 = 0;
     let mut high_score: u32 = fs::read_to_string("high_score.dat")
         .ok()
@@ -66,7 +102,23 @@ async fn main() {
 
     loop {
         // Clear the screen and set the background color
-        clear_background(BLUE);
+        clear_background(BLACK);
+
+        // Draw the starfield
+        material.set_uniform("iResolution", (screen_width(), screen_height()));
+        material.set_uniform("direction_modifier", direction_modifier);
+        gl_use_material(&material);
+        draw_texture_ex(
+            &render_target.texture,
+            0.,
+            0.,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(screen_width(), screen_height())),
+                ..Default::default()
+            },
+        );
+        gl_use_default_material();
 
         match game_state {
             GameState::MainMenu => {
@@ -133,9 +185,11 @@ async fn main() {
                 // Move the circle
                 if is_key_down(KeyCode::Right) {
                     circle.x += MOVEMENT_SPEED * delta_time;
+                    direction_modifier += 0.05 * delta_time;
                 }
                 if is_key_down(KeyCode::Left) {
                     circle.x -= MOVEMENT_SPEED * delta_time;
+                    direction_modifier -= 0.05 * delta_time;
                 }
                 if is_key_down(KeyCode::Down) {
                     circle.y += MOVEMENT_SPEED * delta_time;
