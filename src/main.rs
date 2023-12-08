@@ -16,7 +16,8 @@ uniform vec4 _Time;
 void main() {
     gl_Position = Projection * Model * vec4(position, 1);
     iTime = _Time.x;
-}";
+}
+";
 
 struct Shape {
     size: f32,
@@ -50,30 +51,12 @@ enum GameState {
 
 #[macroquad::main("wrath")]
 async fn main() {
-    // Shader stuff
-    let mut direction_modifier: f32 = 0.0;
-    let render_target = render_target(screen_width() as u32, screen_height() as u32);
-    render_target.texture.set_filter(FilterMode::Nearest);
-    let material = load_material(
-        ShaderSource::Glsl {
-            vertex: VERTEX_SHADER,
-            fragment: FRAGMENT_SHADER,
-        },
-        MaterialParams {
-            uniforms: vec![
-                ("iResolution".to_owned(), UniformType::Float2),
-                ("direction_modifier".to_owned(), UniformType::Float1),
-            ],
-            ..Default::default()
-        },
-    )
-    .unwrap();
 
     let mut score: u32 = 0;
     let mut high_score: u32 = fs::read_to_string("high_score.dat")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
+    .ok()
+    .and_then(|s| s.parse().ok())
+    .unwrap_or(0);
     let mut game_state = GameState::MainMenu;
     let mut new_high_score = false;
     let mut time_of_last_shot = 0.0;
@@ -99,6 +82,24 @@ async fn main() {
         y: screen_height() / 2.0,
         collided: false,
     };
+    // Shader stuff
+    let mut direction_modifier: f32 = 0.0;
+    let render_target = render_target(320, 150);
+    render_target.texture.set_filter(FilterMode::Nearest);
+    let material = load_material(
+        ShaderSource::Glsl {
+            vertex: VERTEX_SHADER,
+            fragment: FRAGMENT_SHADER,
+        },
+        MaterialParams {
+            uniforms: vec![
+                ("iResolution".to_owned(), UniformType::Float2),
+                ("direction_modifier".to_owned(), UniformType::Float1),
+            ],
+            ..Default::default()
+        },
+    )
+    .unwrap();
 
     loop {
         // Clear the screen and set the background color
