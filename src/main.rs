@@ -64,7 +64,7 @@ fn particle_explosion() -> particles::EmitterConfig {
         size: 3.0,
         size_randomness: 0.8,
         size_curve: Some(macroquad_particles::Curve {
-            points: vec![(0.0, 1.0), (1.0, 0.0)],
+            points: vec![(0.0, 0.5), (0.1, 1.5), (0.5, 0.1)],
             interpolation: macroquad_particles::Interpolation::Linear,
             resolution: 10,
         }),
