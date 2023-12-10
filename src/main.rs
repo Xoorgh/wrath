@@ -1,3 +1,4 @@
+use macroquad_particles::{self as particles, ColorCurve, Emitter, EmitterConfig};
 use macroquad::prelude::*;
 use std::fs;
 
@@ -49,6 +50,33 @@ enum GameState {
     GameOver,
 }
 
+fn particle_explosion() -> particles::EmitterConfig {
+    particles::EmitterConfig {
+        local_coords: false,
+        one_shot: true,
+        emitting: true,
+        lifetime: 1.0,
+        lifetime_randomness: 0.3,
+        explosiveness: 0.65,
+        initial_direction_spread: 2.0 * std::f32::consts::PI,
+        initial_velocity: 300.0,
+        initial_velocity_randomness: 0.8,
+        size: 3.0,
+        size_randomness: 0.8,
+        size_curve: Some(macroquad_particles::Curve {
+            points: vec![(0.0, 1.0), (1.0, 0.0)],
+            interpolation: macroquad_particles::Interpolation::Linear,
+            resolution: 10,
+        }),
+        colors_curve: ColorCurve {
+            start: RED,
+            mid: ORANGE,
+            end: YELLOW,
+        },
+        ..Default::default()
+    }
+}
+
 #[macroquad::main("wrath")]
 async fn main() {
 
@@ -82,6 +110,7 @@ async fn main() {
         y: screen_height() / 2.0,
         collided: false,
     };
+    let mut explosions: Vec<(Emitter, Vec2)> = vec![];
     // Shader stuff
     let mut direction_modifier: f32 = 0.0;
     let render_target = render_target(320, 150);
@@ -129,6 +158,7 @@ async fn main() {
                 if is_key_pressed(KeyCode::Space) {
                     squares.clear();
                     bullets.clear();
+                    explosions.clear();
                     circle.size = CIRCLE_SIZE;
                     circle.x = screen_width() / 2.0;
                     circle.y = screen_height() / 2.0;
@@ -240,8 +270,8 @@ async fn main() {
                     bullet.y -= bullet.speed * delta_time;
                 }
 
-                // Check for collisions, remove square that collides, reduce circle size and check if circle is too small
-                squares.retain(|square| {
+                for square in squares.iter_mut() {
+                    // Check for collisions, remove square that collides, reduce circle size and check if circle is too small
                     if circle.collides_with(square) {
                         // Reduce the circle's size, not below 0.0
                         circle.size = (circle.size - (BASE_DAMAGE * square.size / 16.0)).round().max(0.0);
@@ -259,17 +289,13 @@ async fn main() {
                             game_state = GameState::GameOver;
                         }
                         // Remove the square
-                        false
-                    } else {
-                        // Check if squares are outside the screen or have been hit by a bullet
-                        square.y < ( screen_height() + square.size ) && !square.collided
+                        square.collided = true;
                     }
-                });
+                }
 
-                // Check for collisions, remove bullet that collides, remove square that collides
-                bullets.retain(|bullet| {
-                    // Check if the bullet collides with a square
-                    for square in &mut squares {
+                for square in squares.iter_mut() {
+                    for bullet in bullets.iter_mut() {
+                        // Check for collisions, remove bullet that collides, remove square that collides
                         if bullet.collides_with(square) {
                             // Set the collided variable to true
                             square.collided = true;
@@ -278,12 +304,38 @@ async fn main() {
                             // Increase the score inversely to the square size
                             score += (BASE_SCORE * SQUARE_MAX_SIZE / square.size).round() as u32;
                             // Remove the bullet
-                            return false;
+                            bullet.collided = true;
                         }
                     }
-                    // Check if the bullet is outside the screen
-                    bullet.y > 0.0 - bullet.size / 2.0
+                }
+
+                for square in squares.iter_mut() {
+                    if square.collided {
+                        // Create an explosion
+                        explosions.push((
+                            Emitter::new(EmitterConfig {
+                                amount: square.size.round() as u32 * 2,
+                                ..particle_explosion()
+                            }),
+                            vec2(square.x, square.y),
+                        ))
+                    }
+                }
+
+                // Remove squares that have been hit by a bullet or are outside the screen
+                squares.retain(|square| {
+                        // Check if squares are outside the screen or have been hit by a bullet
+                        square.y < ( screen_height() + square.size ) && !square.collided
                 });
+
+                // Check for collisions, remove bullet that collides, remove square that collides
+                bullets.retain(|bullet| {
+                    // Check if the bullet is outside the screen or has collided with a square
+                    bullet.y > 0.0 - bullet.size / 2.0 && !bullet.collided
+                });
+
+                // Remove explosions that have finished
+                explosions.retain(|(explosion, _)| explosion.config.emitting);
 
                 // Draw everything
                 // Draw the bullets
@@ -314,6 +366,11 @@ async fn main() {
                         square.size,
                         RED,
                     );
+                }
+
+                // Draw the explosions
+                for (explosion, coords) in explosions.iter_mut() {
+                    explosion.draw(*coords);
                 }
 
                 // Draw HUD outline
