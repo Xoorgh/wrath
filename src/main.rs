@@ -1,5 +1,24 @@
+use macroquad_particles::{self as particles, ColorCurve, Emitter, EmitterConfig};
 use macroquad::prelude::*;
 use std::fs;
+
+const FRAGMENT_SHADER: &str = include_str!("starfield-shader.glsl");
+
+const VERTEX_SHADER: &str = "#version 100
+attribute vec3 position;
+attribute vec2 texcoord;
+attribute vec4 color0;
+varying float iTime;
+
+uniform mat4 Model;
+uniform mat4 Projection;
+uniform vec4 _Time;
+
+void main() {
+    gl_Position = Projection * Model * vec4(position, 1);
+    iTime = _Time.x;
+}
+";
 
 struct Shape {
     size: f32,
@@ -31,13 +50,41 @@ enum GameState {
     GameOver,
 }
 
+fn particle_explosion() -> particles::EmitterConfig {
+    particles::EmitterConfig {
+        local_coords: false,
+        one_shot: true,
+        emitting: true,
+        lifetime: 1.0,
+        lifetime_randomness: 0.3,
+        explosiveness: 0.65,
+        initial_direction_spread: 2.0 * std::f32::consts::PI,
+        initial_velocity: 300.0,
+        initial_velocity_randomness: 0.8,
+        size: 3.0,
+        size_randomness: 0.8,
+        size_curve: Some(macroquad_particles::Curve {
+            points: vec![(0.0, 1.0), (1.0, 0.0)],
+            interpolation: macroquad_particles::Interpolation::Linear,
+            resolution: 10,
+        }),
+        colors_curve: ColorCurve {
+            start: RED,
+            mid: ORANGE,
+            end: YELLOW,
+        },
+        ..Default::default()
+    }
+}
+
 #[macroquad::main("wrath")]
 async fn main() {
+
     let mut score: u32 = 0;
     let mut high_score: u32 = fs::read_to_string("high_score.dat")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
+    .ok()
+    .and_then(|s| s.parse().ok())
+    .unwrap_or(0);
     let mut game_state = GameState::MainMenu;
     let mut new_high_score = false;
     let mut time_of_last_shot = 0.0;
@@ -63,10 +110,45 @@ async fn main() {
         y: screen_height() / 2.0,
         collided: false,
     };
+    let mut explosions: Vec<(Emitter, Vec2)> = vec![];
+    // Shader stuff
+    let mut direction_modifier: f32 = 0.0;
+    let render_target = render_target(320, 150);
+    render_target.texture.set_filter(FilterMode::Nearest);
+    let material = load_material(
+        ShaderSource::Glsl {
+            vertex: VERTEX_SHADER,
+            fragment: FRAGMENT_SHADER,
+        },
+        MaterialParams {
+            uniforms: vec![
+                ("iResolution".to_owned(), UniformType::Float2),
+                ("direction_modifier".to_owned(), UniformType::Float1),
+            ],
+            ..Default::default()
+        },
+    )
+    .unwrap();
 
     loop {
         // Clear the screen and set the background color
-        clear_background(BLUE);
+        clear_background(BLACK);
+
+        // Draw the starfield
+        material.set_uniform("iResolution", (screen_width(), screen_height()));
+        material.set_uniform("direction_modifier", direction_modifier);
+        gl_use_material(&material);
+        draw_texture_ex(
+            &render_target.texture,
+            0.,
+            0.,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(screen_width(), screen_height())),
+                ..Default::default()
+            },
+        );
+        gl_use_default_material();
 
         match game_state {
             GameState::MainMenu => {
@@ -76,6 +158,7 @@ async fn main() {
                 if is_key_pressed(KeyCode::Space) {
                     squares.clear();
                     bullets.clear();
+                    explosions.clear();
                     circle.size = CIRCLE_SIZE;
                     circle.x = screen_width() / 2.0;
                     circle.y = screen_height() / 2.0;
@@ -133,9 +216,11 @@ async fn main() {
                 // Move the circle
                 if is_key_down(KeyCode::Right) {
                     circle.x += MOVEMENT_SPEED * delta_time;
+                    direction_modifier += 0.05 * delta_time;
                 }
                 if is_key_down(KeyCode::Left) {
                     circle.x -= MOVEMENT_SPEED * delta_time;
+                    direction_modifier -= 0.05 * delta_time;
                 }
                 if is_key_down(KeyCode::Down) {
                     circle.y += MOVEMENT_SPEED * delta_time;
@@ -185,8 +270,8 @@ async fn main() {
                     bullet.y -= bullet.speed * delta_time;
                 }
 
-                // Check for collisions, remove square that collides, reduce circle size and check if circle is too small
-                squares.retain(|square| {
+                for square in squares.iter_mut() {
+                    // Check for collisions, remove square that collides, reduce circle size and check if circle is too small
                     if circle.collides_with(square) {
                         // Reduce the circle's size, not below 0.0
                         circle.size = (circle.size - (BASE_DAMAGE * square.size / 16.0)).round().max(0.0);
@@ -204,17 +289,13 @@ async fn main() {
                             game_state = GameState::GameOver;
                         }
                         // Remove the square
-                        false
-                    } else {
-                        // Check if squares are outside the screen or have been hit by a bullet
-                        square.y < ( screen_height() + square.size ) && !square.collided
+                        square.collided = true;
                     }
-                });
+                }
 
-                // Check for collisions, remove bullet that collides, remove square that collides
-                bullets.retain(|bullet| {
-                    // Check if the bullet collides with a square
-                    for square in &mut squares {
+                for square in squares.iter_mut() {
+                    for bullet in bullets.iter_mut() {
+                        // Check for collisions, remove bullet that collides, remove square that collides
                         if bullet.collides_with(square) {
                             // Set the collided variable to true
                             square.collided = true;
@@ -223,12 +304,38 @@ async fn main() {
                             // Increase the score inversely to the square size
                             score += (BASE_SCORE * SQUARE_MAX_SIZE / square.size).round() as u32;
                             // Remove the bullet
-                            return false;
+                            bullet.collided = true;
                         }
                     }
-                    // Check if the bullet is outside the screen
-                    bullet.y > 0.0 - bullet.size / 2.0
+                }
+
+                for square in squares.iter_mut() {
+                    if square.collided {
+                        // Create an explosion
+                        explosions.push((
+                            Emitter::new(EmitterConfig {
+                                amount: square.size.round() as u32 * 2,
+                                ..particle_explosion()
+                            }),
+                            vec2(square.x, square.y),
+                        ))
+                    }
+                }
+
+                // Remove squares that have been hit by a bullet or are outside the screen
+                squares.retain(|square| {
+                        // Check if squares are outside the screen or have been hit by a bullet
+                        square.y < ( screen_height() + square.size ) && !square.collided
                 });
+
+                // Check for collisions, remove bullet that collides, remove square that collides
+                bullets.retain(|bullet| {
+                    // Check if the bullet is outside the screen or has collided with a square
+                    bullet.y > 0.0 - bullet.size / 2.0 && !bullet.collided
+                });
+
+                // Remove explosions that have finished
+                explosions.retain(|(explosion, _)| explosion.config.emitting);
 
                 // Draw everything
                 // Draw the bullets
@@ -259,6 +366,11 @@ async fn main() {
                         square.size,
                         RED,
                     );
+                }
+
+                // Draw the explosions
+                for (explosion, coords) in explosions.iter_mut() {
+                    explosion.draw(*coords);
                 }
 
                 // Draw HUD outline
